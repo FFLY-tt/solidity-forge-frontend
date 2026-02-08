@@ -94,6 +94,22 @@ export default function ExecutionPage() {
   };
 
   const matrix = task?.matrix_cases || [];
+  // 1. 解析 Fuzzer 独立数据
+  const fuzzerStats = React.useMemo(() => {
+    if (!task?.fuzzer_report) return null;
+    try { return JSON.parse(task.fuzzer_report); } 
+    catch { return null; }
+  }, [task?.fuzzer_report]);
+
+  // 2. 计算显示数值
+  // 逻辑：如果已经有报告，用报告里的数据；否则为 0
+  const realFuzzFailures = fuzzerStats?.failures || 0;
+
+  // 3. 计算分母 (0 还是 500)
+  // 逻辑：如果有报告(已完成) OR (正在运行 且 Slither已出报告 -> 说明正在跑Fuzzer)
+  const isFuzzingOrDone = !!fuzzerStats || (task?.status === 'running' && !!task?.slither_report);
+  const displayFuzzRounds = isFuzzingOrDone ? 500 : 0; // 500 预设值
+  
   const failedCases = matrix.filter((c: any) => c.status === 'FAILING');
   const activeThreats = failedCases.length;
   const totalCases = matrix.length;
@@ -162,10 +178,19 @@ export default function ExecutionPage() {
                   <div className="flex justify-between items-center mb-3"><span className="text-xs font-bold text-slate-700">Current Session</span><span className="text-[10px] text-slate-400">Latest</span></div>
                   <div className="flex justify-between items-center">
                     <span className="text-xs text-slate-500 font-medium">Failures / Total:</span>
-                    <div className="flex items-center gap-1 font-mono">
-                      <button onClick={openFailureList} disabled={activeThreats === 0} className={`text-lg font-bold px-2 py-0.5 rounded transition-all ${activeThreats > 0 ? 'text-red-600 bg-red-100 hover:bg-red-200 underline decoration-dotted cursor-pointer' : 'text-emerald-600'}`}>{activeThreats}</button>
-                      <span className="text-slate-400 text-sm">/</span><span className="text-slate-700 font-bold text-sm">{totalCases}</span>
-                    </div>
+                     <div className="flex items-center gap-1 font-mono">
+                        <button 
+                           onClick={openFailureList} 
+                           disabled={realFuzzFailures === 0} 
+                           className={`text-lg font-bold px-2 py-0.5 rounded transition-all ${realFuzzFailures > 0 ? 'text-red-600 bg-red-100 hover:bg-red-200 underline decoration-dotted cursor-pointer' : 'text-emerald-600'}`}
+                        >
+                           {realFuzzFailures}
+                        </button>
+                        <span className="text-slate-400 text-sm">/</span>
+                        <span className="text-slate-700 font-bold text-sm">
+                           {displayFuzzRounds}
+                        </span>
+                     </div>
                   </div>
                 </div>
               </div>
