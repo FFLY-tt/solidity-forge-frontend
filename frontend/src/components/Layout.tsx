@@ -1,15 +1,12 @@
-// src/components/Layout.tsx
-
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, LogOut, Shield, User as UserIcon } from 'lucide-react';
-import { authService } from '../api/services'; // 引入 API
+import { LayoutDashboard, LogOut, Shield, User as UserIcon, Search } from 'lucide-react';
+import { authService } from '../api/services';
 
 interface LayoutProps {
   children: React.ReactNode;
 }
 
-// 定义用户接口
 interface UserProfile {
   username: string;
   email: string;
@@ -21,7 +18,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation();
   const [user, setUser] = useState<UserProfile | null>(null);
 
-  // 👇 加载用户信息
+  // 获取用户信息
   useEffect(() => {
     const fetchUser = async () => {
       try {
@@ -29,7 +26,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         setUser(userData);
       } catch (err) {
         console.error("Failed to fetch user info", err);
-        // 如果 Token 过期，可以在这里自动登出
+        // 如果 token 失效，可以在这里处理跳转
+        // navigate('/login');
       }
     };
     fetchUser();
@@ -42,6 +40,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const menuItems = [
     { label: 'Mission Control', path: '/', icon: <LayoutDashboard className="w-5 h-5" /> },
+    // 👇 新增：查询页面入口
+    { label: 'Query Tasks', path: '/search', icon: <Search className="w-5 h-5" /> },
   ];
 
   return (
@@ -49,7 +49,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       {/* Sidebar */}
       <aside className="w-64 bg-[#1e1e1e] text-white flex flex-col shrink-0 transition-all duration-300">
         
-        {/* 1. Logo Area */}
+        {/* Logo Area */}
         <div className="p-6 flex items-center gap-3 border-b border-gray-800">
           <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-500/30">
             <Shield className="w-5 h-5 text-white" />
@@ -57,11 +57,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           <span className="text-xl font-bold tracking-tight">SoliForge</span>
         </div>
 
-        {/* 👇👇👇 2. User Profile Area (新增用户卡片) 👇👇👇 */}
+        {/* User Profile Area */}
         <div className="px-4 py-6">
           <div className="bg-gray-800/50 rounded-xl p-3 flex items-center gap-3 border border-gray-700/50">
             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shrink-0">
-               {/* 如果没有头像，用首字母代替 */}
                <span className="font-bold text-sm">
                  {user?.username ? user.username.substring(0, 2).toUpperCase() : <UserIcon className="w-5 h-5"/>}
                </span>
@@ -77,7 +76,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
         </div>
 
-        {/* 3. Navigation */}
+        {/* Navigation */}
         <nav className="flex-1 px-4 space-y-2 overflow-y-auto">
           <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 px-2 mt-2">
             Platform
@@ -103,7 +102,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           })}
         </nav>
 
-        {/* 4. Logout Area */}
+        {/* Logout Area */}
         <div className="p-4 border-t border-gray-800">
           <button
             onClick={handleLogout}

@@ -1,7 +1,4 @@
-// src/components/CodeSection.tsx
-
-import React, { useState } from 'react';
-// import ReactDiffViewer, { DiffMethod } from 'react-diff-viewer-continued'; // 暂时注释防白屏
+import React, { useState, useEffect } from 'react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/cjs/styles/prism';
 import { Code2, GitCompare } from 'lucide-react';
@@ -10,13 +7,29 @@ interface CodeSectionProps {
   originalCode: string;
   fixedCode: string;
   contractName: string;
+  // 👇 新增 Props 定义，解决报错
+  isUploaded?: boolean;
+  hasFix?: boolean;
 }
 
-export const CodeSection: React.FC<CodeSectionProps> = ({ originalCode, fixedCode, contractName }) => {
+export const CodeSection: React.FC<CodeSectionProps> = ({ 
+  originalCode, 
+  fixedCode, 
+  contractName,
+  // 👇 设置默认值防止未传参报错
+  isUploaded = false,
+  hasFix = false
+}) => {
   const [mode, setMode] = useState<'CODE' | 'DIFF'>('CODE');
   const [version, setVersion] = useState<'v1' | 'v2'>('v1');
 
-  const currentCode = version === 'v1' ? (originalCode || '// No V1 code') : (fixedCode || '// No V2 code (Fixing...)');
+  // 当上传状态变化时，重置为 v1
+  useEffect(() => {
+    if (!isUploaded) setVersion('v1');
+  }, [isUploaded]);
+
+  const currentCode = version === 'v1' ? 
+    (originalCode || '// No V1 code') : (fixedCode || '// No V2 code (Fixing...)');
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 h-full flex flex-col overflow-hidden">
@@ -27,10 +40,18 @@ export const CodeSection: React.FC<CodeSectionProps> = ({ originalCode, fixedCod
              <select 
                value={version} 
                onChange={(e) => setVersion(e.target.value as any)}
-               className="text-xs border border-slate-300 rounded px-2 py-0.5 bg-white outline-none"
+               disabled={!isUploaded} // 👇 使用传入的 isUploaded
+               className={`text-xs border border-slate-300 rounded px-2 py-0.5 outline-none ${!isUploaded ? 'bg-slate-100 text-slate-400' : 'bg-white'}`}
              >
-               <option value="v1">v1 (Original)</option>
-               <option value="v2">v2 (Fixed)</option>
+               {/* 👇 根据状态动态渲染选项 */}
+               {!isUploaded ? (
+                 <option>Waiting for upload...</option>
+               ) : (
+                 <>
+                   <option value="v1">v1 (Original)</option>
+                   {hasFix && <option value="v2">v2 (Fixed)</option>}
+                 </>
+               )}
              </select>
           )}
         </div>

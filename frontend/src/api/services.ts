@@ -40,8 +40,7 @@ export const taskService = {
   getAll: (page = 1, pageSize = 20) => api.get(`/tasks/?page=${page}&page_size=${pageSize}`),
   
   // 你的 Dashboard.tsx 用的是这个名字：
-  getList: (params: { page: number, page_size: number }) => api.get(`/tasks/?page=${params.page}&page_size=${params.page_size}`),
-
+  getList: (params: any) => api.get('/tasks/', { params }),
   // 创建任务
   create: (name: string) => api.post('/tasks/create', null, { params: { name } }),
 

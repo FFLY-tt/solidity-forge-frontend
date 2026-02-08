@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
-import { taskService } from '../api/services';
-import { Plus, Trash2, Search, FileCode, PlayCircle } from 'lucide-react';
+import { taskService, authService } from '../api/services'; // 引入 authService
+import { Plus, Trash2, FileCode, Clock } from 'lucide-react';
 
 export default function Dashboard() {
   const [tasks, setTasks] = useState<any[]>([]);
@@ -10,26 +10,38 @@ export default function Dashboard() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newTaskName, setNewTaskName] = useState('');
   const navigate = useNavigate();
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [currentUser, setCurrentUser] = useState<any>(null);
 
-  const fetchTasks = async () => {
+  // 初始化加载：先获取用户，再获取该用户的任务
+  useEffect(() => {
+    const init = async () => {
+      try {
+        const user = await authService.getMe();
+        setCurrentUser(user);
+        await fetchTasks(user.id); // 传入 owner_id
+      } catch (err) {
+        console.error("Init failed", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    init();
+  }, []);
+
+  const fetchTasks = async (ownerId?: number) => {
     try {
-      // 这里的 getList 已经在 services.ts 里配好了
-      const res = await taskService.getList({ page: 1, page_size: 20 });
+      // 传入 owner_id 只查自己的任务
+      const res = await taskService.getList({ page: 1, page_size: 20, owner_id: ownerId });
       setTasks(res.data.items);
     } catch (err) {
       console.error(err);
-    } finally {
-      setLoading(false);
     }
   };
 
-  useEffect(() => { fetchTasks(); }, []);
-
   const handleCreate = async () => {
-    console.log("🚀 正在创建任务, 名称:", newTaskName);
     if (!newTaskName) return;
     try {
-      // 👉 修复点：直接传字符串，不要包对象
       const res = await taskService.create(newTaskName);
       setIsModalOpen(false);
       navigate(`/task/${res.data.id}`);
@@ -42,36 +54,38 @@ export default function Dashboard() {
     e.stopPropagation();
     if (confirm('Are you sure you want to delete this task?')) {
       try {
-        // 这里的 delete 也在 services.ts 里补上了
         await taskService.delete(id);
-        fetchTasks();
-        
-      } catch (e) {
-        console.error("Delete not implemented in backend yet");
-        // 暂时只是前端移除效果
+        // 重新拉取列表 (使用当前列表状态中的 owner_id 逻辑，这里简化直接刷新页面或重新过滤)
         setTasks(tasks.filter(t => t.id !== id));
+      } catch (e) {
+        alert("Delete failed");
       }
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed': return 'bg-emerald-100 text-emerald-700 border-emerald-200';
-      case 'failed': return 'bg-red-100 text-red-700 border-red-200';
-      case 'running': return 'bg-blue-100 text-blue-700 border-blue-200 animate-pulse';
-      case 'stopped': return 'bg-amber-100 text-amber-700 border-amber-200';
-      default: return 'bg-slate-100 text-slate-600 border-slate-200';
-    }
+  const getStatusBadge = (status: string) => {
+    const styles: any = {
+      completed: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+      failed: 'bg-red-100 text-red-700 border-red-200',
+      running: 'bg-blue-100 text-blue-700 border-blue-200 animate-pulse',
+      stopped: 'bg-amber-100 text-amber-700 border-amber-200',
+      created: 'bg-slate-100 text-slate-600 border-slate-200',
+      uploaded: 'bg-purple-100 text-purple-700 border-purple-200',
+    };
+    return (
+      <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wide border ${styles[status] || styles.created}`}>
+        {status}
+      </span>
+    );
   };
 
   return (
     <Layout>
       <div className="p-8 max-w-7xl mx-auto w-full">
-        {/* Header */}
         <div className="flex justify-between items-center mb-8">
           <div>
-            <h1 className="text-2xl font-bold text-slate-800">Audit Missions</h1>
-            <p className="text-slate-500 mt-1">Manage and track your smart contract audits</p>
+            <h1 className="text-2xl font-bold text-slate-800">My Missions</h1>
+            <p className="text-slate-500 mt-1">Manage your own audit tasks</p>
           </div>
           <button
             onClick={() => setIsModalOpen(true)}
@@ -81,58 +95,70 @@ export default function Dashboard() {
           </button>
         </div>
 
-        {/* Task Grid */}
-        {loading ? (
-          <div className="text-center py-20 text-slate-400">Loading missions...</div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {tasks.map((task) => (
-              <div
-                key={task.id}
-                onClick={() => navigate(`/task/${task.id}`)}
-                className="group bg-white rounded-xl border border-slate-200 p-5 hover:shadow-xl hover:border-indigo-300 transition-all duration-300 cursor-pointer relative overflow-hidden"
-              >
-                <div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button
-                    onClick={(e) => handleDelete(e, task.id)}
-                    className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors"
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <table className="w-full text-left border-collapse">
+            <thead className="bg-slate-50 border-b border-slate-200">
+              <tr>
+                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Task Name</th>
+                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Contract</th>
+                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Duration</th>
+                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Created At</th>
+                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {loading ? (
+                <tr><td colSpan={6} className="p-8 text-center text-slate-400">Loading...</td></tr>
+              ) : tasks.length === 0 ? (
+                <tr><td colSpan={6} className="p-8 text-center text-slate-400">No missions found.</td></tr>
+              ) : (
+                tasks.map((task) => (
+                  <tr 
+                    key={task.id} 
+                    onClick={() => navigate(`/task/${task.id}`)}
+                    className="hover:bg-slate-50 transition-colors cursor-pointer group"
                   >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
+                    <td className="px-6 py-4">
+                      <div className="font-medium text-slate-800 group-hover:text-indigo-600 transition-colors">
+                        {task.name}
+                      </div>
+                      <div className="text-xs text-slate-400 font-mono mt-0.5">ID: {task.id.slice(0, 8)}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2 text-sm text-slate-600">
+                        <FileCode className="w-4 h-4 text-slate-400" />
+                        {task.contract_name || <span className="text-slate-400 italic">Pending</span>}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      {getStatusBadge(task.status)}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-slate-500">
+                       <div className="flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {task.duration ? `${task.duration}s` : '-'}
+                       </div>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-slate-500">
+                      {new Date(task.created_at).toLocaleString()}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <button
+                        onClick={(e) => handleDelete(e, task.id)}
+                        className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Delete Task"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
 
-                <div className="flex items-start justify-between mb-4">
-                  <div className={`px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wide border ${getStatusColor(task.status)}`}>
-                    {task.status}
-                  </div>
-                  <span className="text-xs text-slate-400 font-mono">
-                    {new Date(task.created_at).toLocaleDateString()}
-                  </span>
-                </div>
-
-                <h3 className="text-lg font-bold text-slate-800 mb-2 group-hover:text-indigo-600 transition-colors truncate">
-                  {task.name}
-                </h3>
-
-                <div className="flex items-center gap-2 text-sm text-slate-500 mb-6">
-                  <FileCode className="w-4 h-4" />
-                  <span className="truncate max-w-[200px]">{task.contract_name || 'No contract uploaded'}</span>
-                </div>
-
-                <div className="border-t border-slate-100 pt-4 flex items-center justify-between">
-                   <div className="text-xs text-slate-400">
-                     ID: {task.id.substring(0, 8)}
-                   </div>
-                   <div className="text-indigo-600 text-sm font-medium flex items-center opacity-0 group-hover:opacity-100 transform translate-x-2 group-hover:translate-x-0 transition-all">
-                     View Details <PlayCircle className="w-4 h-4 ml-1" />
-                   </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Create Modal */}
         {isModalOpen && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
@@ -148,18 +174,8 @@ export default function Dashboard() {
                   onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
                 />
                 <div className="mt-6 flex justify-end gap-3">
-                  <button
-                    onClick={() => setIsModalOpen(false)}
-                    className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleCreate}
-                    className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium shadow-md shadow-indigo-200"
-                  >
-                    Create Mission
-                  </button>
+                  <button onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium">Cancel</button>
+                  <button onClick={handleCreate} className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium">Create</button>
                 </div>
               </div>
             </div>
